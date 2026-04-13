@@ -5,17 +5,17 @@ options(warn = -1)
 
 
 ############################
-# 1. LETTURA ARGOMENTI
+#   LETTURA ARGOMENTI
 ############################
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) < 5) {
-  stop("Usage: RScript multikmeans.R <input_csv> <k_values> <max_iter> <coords> <features>")
+if (length(args) < 6) {
+  stop("Usage: RScript multikmeans.R <input_csv> <k_values> <max_iter> <coords> <features> <year>")
 }
 
 ############################
-# INPUT FILE
+#   INPUT FILE
 ############################
 
 variables_risk1_standardized_file <- args[1]
@@ -25,7 +25,7 @@ if (!file.exists(variables_risk1_standardized_file)) {
 }
 
 ############################
-# K VALUES (multi_centroidi)
+#   K VALUES (multi_centroidi)
 ############################
 
 if (grepl(":", args[2])) {
@@ -40,42 +40,41 @@ if (grepl(":", args[2])) {
 }
 
 ############################
-# ITERAZIONI K-MEANS
+#   ITERAZIONI K-MEANS
 ############################
 
 N <- as.numeric(args[3])
 
 ############################
-# FEATURES + COORDINATE
+#   FEATURES + COORDINATE
 ############################
 
-### MODIFICA: separazione esplicita coordinate e variabili
 coord_cols <- strsplit(args[4], ",")[[1]]  
 selected_features <- strsplit(args[5], ",")[[1]] 
 
 ############################
-# OUTPUT FOLDER
+#   OUTPUT FOLDER
 ############################
 
-output_sd_coords <- "output_sd_coords"
+output_coords <- "output_coords"
 
-if (!dir.exists(output_sd_coords)) {
-  dir.create(output_sd_coords, recursive = TRUE)
-  cat("Created output folder:", output_sd_coords, "\n")
+if (!dir.exists(output_coords)) {
+  dir.create(output_coords, recursive = TRUE)
+  cat("Created output folder:", output_coords, "\n")
 } else {
-  cat("Output folder already exists:", output_sd_coords, "\n")
+  cat("Output folder already exists:", output_coords, "\n")
 }
 
 ############################
-# YEAR EXTRACTION
+#   YEAR 
 ############################
 
-year <- gsub("\\D", "", variables_risk1_standardized_file)
+year <- args[6]
 
-
+cat("Year used:", year, "\n")
 
 ############################
-# 2. LETTURA DATI
+#   LETTURA DATI
 ############################
 
 variables_risk1_standardized <- read_csv(variables_risk1_standardized_file) %>% drop_na()
@@ -87,7 +86,7 @@ coords <- selection[, coord_cols]
 selected_features_coords <- selection[, selected_features]
 
 ############################
-# 2b. CONTROLLO K
+#   CONTROLLO K
 ############################
 
 v_check <- as.data.frame(selected_features_coords)
@@ -102,7 +101,7 @@ if (any(multi_centroidi > max_k_allowed)) {
 }
 
 ############################
-# 3. LOOP SUI K
+#   LOOP SUI K
 ############################
 
 bics <- c()
@@ -177,7 +176,7 @@ for (n_centroidi in multi_centroidi) {
   }
   
   ############################
-  # INTERPRETAZIONE (IDENTICA)
+  # INTERPRETAZIONE
   ############################
   
   c_H <- rowSums(centroidi_labelled == "H")
@@ -220,7 +219,7 @@ for (n_centroidi in multi_centroidi) {
   
   write.csv(
     centroidi_annotated,
-    file = paste0(output_sd_coords, "/all_centroidi_annotated_", n_centroidi, "_", year, "_sd.csv"),
+    file = paste0(output_coords, "/all_centroidi_annotated_", n_centroidi, "_", year, "_sd.csv"),
     row.names = FALSE
   )
   
@@ -236,7 +235,7 @@ for (n_centroidi in multi_centroidi) {
   
   write.csv(
     nuovo_v,
-    file = paste0(output_sd_coords, "/all_centroid_classification_assignment_", n_centroidi, "_", year, "_five_spp.csv"),
+    file = paste0(output_coords, "/all_centroid_classification_assignment_", n_centroidi, "_", year, "_five_spp.csv"),
     row.names = FALSE
   )
   
@@ -283,7 +282,7 @@ for (n_centroidi in multi_centroidi) {
 }
 
 ############################
-# BEST K
+#   BEST K
 ############################
 
 best_clusterisation <- multi_centroidi[which(bics == max(bics))]
@@ -299,13 +298,13 @@ summary_df <- data.frame(
 
 write.csv(
   summary_df,
-  file = paste0(output_sd_coords, "/summary_UNIF.csv"),
+  file = paste0(output_coords, "/summary_UNIF.csv"),
   row.names = FALSE
 )
 
 # FILE BEST K 
 best_clusterisation_file <- paste0(
-  output_sd_coords,
+  output_coords,
   "/centroid_classification_assignment_",
   best_clusterisation,
   ".csv"
@@ -313,7 +312,7 @@ best_clusterisation_file <- paste0(
 
 write.csv(
   data.frame(best_K = best_clusterisation),
-  file = paste0(output_sd_coords, "/best_K.csv"),
+  file = paste0(output_coords, "/best_K.csv"),
   row.names = FALSE
 )
 

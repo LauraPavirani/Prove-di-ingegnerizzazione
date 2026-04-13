@@ -1,3 +1,5 @@
+# DESCRIZIONE DEL CODICE NEL FILE .txt
+
 rm(list = ls())
 
 library(tidyverse)
@@ -5,17 +7,17 @@ options(warn = -1)
 
   
 ############################
-# 1. LETTURA ARGOMENTI
+#   LETTURA ARGOMENTI
 ############################
   
 args <- commandArgs(trailingOnly = TRUE)
   
-if (length(args) < 4) {
-  stop("Usage: RScript multikmeans.R <input_csv> <k_values> <max_iter> <columns>")
+if (length(args) < 5) {
+  stop("Usage: RScript multikmeans.R <input_csv> <k_values> <max_iter> <columns> <year>")
 }
   
 ############################
-# INPUT FILE
+#   INPUT FILE
 ############################
 
 variables_risk1_standardized_file <- args[1]
@@ -25,7 +27,7 @@ if (!file.exists(variables_risk1_standardized_file)) {
 }
   
 ############################
-# K VALUES (multi_centroidi)
+#   K VALUES (multi_centroidi)
 ############################
 
 if (grepl(":", args[2])) {
@@ -40,40 +42,41 @@ if (grepl(":", args[2])) {
 }
 
 ############################
-# ITERAZIONI K-MEANS
+#   ITERAZIONI K-MEANS
 ############################
 
 N <- as.numeric(args[3])
 
 ############################
-# FEATURES
+#   FEATURES
 ############################
 
 selected_features <- strsplit(args[4], ",")[[1]]  
 
-############################
-# OUTPUT FOLDER
-############################
-
-output_sd <- "output_sd"
-
-if (!dir.exists(output_sd)) {
-  dir.create(output_sd, recursive = TRUE)
-  cat("Created output folder:", output_sd, "\n")
-} else {
-  cat("Output folder already exists:", output_sd, "\n")
-}
 
 ############################
 # YEAR EXTRACTION
 ############################
 
-year <- gsub("\\D", "", variables_risk1_standardized_file)
-  
+year <- args[5]
 
 
 ############################
-# 2. LETTURA DATI
+#   OUTPUT FOLDER
+############################
+
+output_multikmeans <- "output_multikmeans"
+
+if (!dir.exists(output_multikmeans)) {
+  dir.create(output_multikmeans, recursive = TRUE)
+  cat("Created output folder:", output_multikmeans, "\n")
+} else {
+  cat("Output folder already exists:", output_multikmeans, "\n")
+}
+
+
+############################
+#   LETTURA DATI
 ############################
   
 variables_risk1_standardized <- read_csv(variables_risk1_standardized_file) %>% drop_na()
@@ -82,7 +85,7 @@ selection <- variables_risk1_standardized
 selected_features_coords <- selection[, selected_features]
   
 ############################
-# 2b. CONTROLLO K
+#   CONTROLLO K
 ############################
   
 v_check <- as.data.frame(selected_features_coords[, 3:ncol(selected_features_coords)])
@@ -97,7 +100,7 @@ if (any(multi_centroidi > max_k_allowed)) {
 }
   
 ############################
-# 3. LOOP SUI K
+#   LOOP SUI K
 ############################
 
 bics <- c()
@@ -109,149 +112,149 @@ for (n_centroidi in multi_centroidi) {
   selected_features_coords <- selection[, selected_features]
   v <- as.data.frame(selected_features_coords[, 3:ncol(selected_features_coords)])
   
-############################
-# CENTROIDI
-############################
+  ############################
+  #   CENTROIDI
+  ############################
     
-centroidi <- matrix(nrow = n_centroidi, ncol = ncol(v))
+  centroidi <- matrix(nrow = n_centroidi, ncol = ncol(v))
   
-for (centroide in 1:nrow(centroidi)) {
-  centroidi[centroide, ] <- as.numeric(v[centroide, ])
-}
-    
-km <- kmeans(as.matrix(v), centers = as.matrix(centroidi), iter.max = N)
-    
-selected_features_coords$distance_class <- km$cluster
-v$distance_class <- km$cluster
-    
-centroidi <- as.matrix(km$centers)
-    
-############################
-# DEVIAZIONE STANDARD
-############################
-    
-feature_names <- selected_features[3:length(selected_features)]
-    
-centroidi_sd <- matrix(nrow = n_centroidi, ncol = (ncol(v) - 1))
-    
-for (centroide in 1:n_centroidi) {
-punti_cluster <- v[v$distance_class == centroide, 1:(ncol(v) - 1)]
-      
-if (nrow(punti_cluster) > 1) {
-    centroidi_sd[centroide, ] <- apply(punti_cluster, 2, sd)
-  } else {
-    centroidi_sd[centroide, ] <- 0
+  for (centroide in 1:nrow(centroidi)) {
+    centroidi[centroide, ] <- as.numeric(v[centroide, ])
   }
-}
     
-centroidi_sd_df <- as.data.frame(centroidi_sd)
-names(centroidi_sd_df) <- paste0(feature_names, "_sd")
+  km <- kmeans(as.matrix(v), centers = as.matrix(centroidi), iter.max = N)
+    
+  selected_features_coords$distance_class <- km$cluster
+  v$distance_class <- km$cluster
+    
+  centroidi <- as.matrix(km$centers)
+    
+  ############################
+  #   DEVIAZIONE STANDARD
+  ############################
+    
+  feature_names <- selected_features[3:length(selected_features)]
+    
+  centroidi_sd <- matrix(nrow = n_centroidi, ncol = (ncol(v) - 1))
+    
+  for (centroide in 1:n_centroidi) {
+  punti_cluster <- v[v$distance_class == centroide, 1:(ncol(v) - 1)]
+      
+  if (nrow(punti_cluster) > 1) {
+     centroidi_sd[centroide, ] <- apply(punti_cluster, 2, sd)
+   } else {
+      centroidi_sd[centroide, ] <- 0
+   }
+  }
+    
+  centroidi_sd_df <- as.data.frame(centroidi_sd)
+  names(centroidi_sd_df) <- paste0(feature_names, "_sd")
   
-############################
-# QUANTILI
-############################
+  ############################
+  #   QUANTILI
+  ############################
     
-v_quantili <- apply(v, 2, quantile)
+  v_quantili <- apply(v, 2, quantile)
     
-  # VERSIONE CORRETTA senza il bug che segnale chatgpt...?
-  # v_quantili <- apply(v[, feature_names], 2, quantile)
+    # VERSIONE CORRETTA senza il bug che segnale chatgpt...?
+   # v_quantili <- apply(v[, feature_names], 2, quantile)
     
-centroidi_labelled <- matrix("M", nrow = nrow(centroidi), ncol = ncol(centroidi))
+  centroidi_labelled <- matrix("M", nrow = nrow(centroidi), ncol = ncol(centroidi))
     
-for (centroide in 1:nrow(centroidi)) {
-  for (feat in 1:(ncol(v) - 1)) {
-    if (centroidi[centroide, feat] < v_quantili[3, feat]) {
-      centroidi_labelled[centroide, feat] <- "L"
-    } else if (centroidi[centroide, feat] > v_quantili[4, feat]) {
-      centroidi_labelled[centroide, feat] <- "H"
+  for (centroide in 1:nrow(centroidi)) {
+    for (feat in 1:(ncol(v) - 1)) {
+      if (centroidi[centroide, feat] < v_quantili[3, feat]) {
+        centroidi_labelled[centroide, feat] <- "L"
+      } else if (centroidi[centroide, feat] > v_quantili[4, feat]) {
+        centroidi_labelled[centroide, feat] <- "H"
+      }
     }
   }
-}
     
-############################
-# INTERPRETAZIONE (IDENTICA)
-############################
+  ############################
+  #   INTERPRETAZIONE 
+  ############################
     
-c_H <- rowSums(centroidi_labelled == "H")
-c_M <- rowSums(centroidi_labelled == "M")
-c_L <- rowSums(centroidi_labelled == "L")
+  c_H <- rowSums(centroidi_labelled == "H")
+  c_M <- rowSums(centroidi_labelled == "M")
+  c_L <- rowSums(centroidi_labelled == "L")
     
-centroide_interpretazione <- character(length(c_H))
+  centroide_interpretazione <- character(length(c_H))
     
-for (i in 1:length(c_H)) {
-  if (c_H[i] > c_L[i] & c_H[i] > c_M[i]) {
-    centroide_interpretazione[i] <- "high attention"
-  } else if (c_L[i] >= c_H[i] & c_L[i] > c_M[i]) {
-    centroide_interpretazione[i] <- "low attention"
-  } else {
-    centroide_interpretazione[i] <- "medium attention"
+  for (i in 1:length(c_H)) {
+    if (c_H[i] > c_L[i] & c_H[i] > c_M[i]) {
+      centroide_interpretazione[i] <- "high attention"
+    } else if (c_L[i] >= c_H[i] & c_L[i] > c_M[i]) {
+      centroide_interpretazione[i] <- "low attention"
+    } else {
+      centroide_interpretazione[i] <- "medium attention"
+    }
   }
-}
     
-############################
-# OUTPUT CENTROIDI
-############################
+  ############################
+  #   OUTPUT CENTROIDI
+  ############################
     
-centroidi_df <- as.data.frame(centroidi)
-centroidi_labelled_df <- as.data.frame(centroidi_labelled)
+  centroidi_df <- as.data.frame(centroidi)
+  centroidi_labelled_df <- as.data.frame(centroidi_labelled)
     
-names(centroidi_df) <- feature_names
-names(centroidi_labelled_df) <- paste0(feature_names, "_label")
+  names(centroidi_df) <- feature_names
+  names(centroidi_labelled_df) <- paste0(feature_names, "_label")
     
-centroid_id <- data.frame(centroid_id = 1:nrow(centroidi_df))
+  centroid_id <- data.frame(centroid_id = 1:nrow(centroidi_df))
     
-centroidi_annotated <- centroid_id
+  centroidi_annotated <- centroid_id
     
-for (i in seq_along(feature_names)) {
-  centroidi_annotated[[feature_names[i]]] <- centroidi_df[[i]]
-  centroidi_annotated[[paste0(feature_names[i], "_sd")]] <- centroidi_sd_df[[i]]
-  centroidi_annotated[[paste0(feature_names[i], "_label")]] <- centroidi_labelled_df[[i]]
-}
+  for (i in seq_along(feature_names)) {
+    centroidi_annotated[[feature_names[i]]] <- centroidi_df[[i]]
+    centroidi_annotated[[paste0(feature_names[i], "_sd")]] <- centroidi_sd_df[[i]]
+    centroidi_annotated[[paste0(feature_names[i], "_label")]] <- centroidi_labelled_df[[i]]
+  }
     
-centroidi_annotated$attention_level <- centroide_interpretazione
+  centroidi_annotated$attention_level <- centroide_interpretazione
     
-write.csv(
-  centroidi_annotated,
-  file = paste0(output_sd, "/all_centroidi_annotated_", n_centroidi, "_", year, "_sd.csv"),
-  row.names = FALSE
-)
+  write.csv(
+    centroidi_annotated,
+    file = paste0(output_multikmeans, "/all_centroidi_annotated_", n_centroidi, "_", year, "_sd.csv"),
+    row.names = FALSE
+  )
     
-############################
-# OUTPUT DATASET
-############################
+  ############################
+  #   OUTPUT DATASET
+  ############################
     
-v$distance_class_interpretation <- centroide_interpretazione[v$distance_class]
+  v$distance_class_interpretation <- centroide_interpretazione[v$distance_class]
     
-nuovo_v <- cbind(selected_features_coords[, 1:2], v)
+  nuovo_v <- cbind(selected_features_coords[, 1:2], v)
     
-names(nuovo_v) <- c(names(selected_features_coords), "distance_class_interpretation")
+  names(nuovo_v) <- c(names(selected_features_coords), "distance_class_interpretation")
     
-write.csv(
-  nuovo_v,
-  file = paste0(output_sd, "/all_centroid_classification_assignment_", n_centroidi, "_", year, "_five_spp.csv"),
-  row.names = FALSE
-)
+  write.csv(
+    nuovo_v,
+   file = paste0(output_multikmeans, "/all_centroid_classification_assignment_", n_centroidi, "_", year, "_five_spp.csv"),
+   row.names = FALSE
+  )
     
-############################
-# UNIF
-############################
+  ############################
+  #   UNIF
+  ############################
     
-centroid_distribution <- km$size
+  centroid_distribution <- km$size
     
-#### CALCULATING ChiSqr
-if (length(which(centroid_distribution<=2))>0 || 
-    ( (min(centroid_distribution)/max(centroid_distribution) ) <0.007) 
-){
-  cat("Unsuitable distribution: low uniformity:",(min(centroid_distribution)/max(centroid_distribution))," --- outliers: ",length(which(centroid_distribution<=2)),"\n")
-  bic<-0
-}else{
-  centroid_distribution.norm<-centroid_distribution/sum(centroid_distribution)
-  reference<-rep(mean(centroid_distribution),length(centroid_distribution) )
-  reference.norm<-reference/sum(reference)
-  chisq<-sum((centroid_distribution.norm*1000-reference.norm*1000)^2/(reference.norm*1000))/length(centroid_distribution.norm)
-  #high chisqr-> worse agreement with uniform distr
-  #since we are selecting the maximum, let's invert the unif
-  bic<-1/chisq
+  #### CALCULATING ChiSqr
+  if (length(which(centroid_distribution<=2))>0 || 
+      ( (min(centroid_distribution)/max(centroid_distribution) ) <0.007) 
+  ){
+    cat("Unsuitable distribution: low uniformity:",(min(centroid_distribution)/max(centroid_distribution))," --- outliers: ",length(which(centroid_distribution<=2)),"\n")
+    bic<-0
+  }else{
+    centroid_distribution.norm<-centroid_distribution/sum(centroid_distribution)
+    reference<-rep(mean(centroid_distribution),length(centroid_distribution) )
+    reference.norm<-reference/sum(reference)
+    chisq<-sum((centroid_distribution.norm*1000-reference.norm*1000)^2/(reference.norm*1000))/length(centroid_distribution.norm)
+    #high chisqr-> worse agreement with uniform distr
+    #since we are selecting the maximum, let's invert the unif
+    bic<-1/chisq
       
       #EXPLANATION OF THE CHI SQR CRITERION:
       #chi sqr probability calculation: for study purposes
@@ -267,15 +270,15 @@ if (length(which(centroid_distribution<=2))>0 ||
       #bic<-p_value
       #cat("pvalue:",p_value,"\n")
       
-    cat("Centroid distribution:",centroid_distribution.norm,"\n")
- }
- cat("Unif:",bic,"\n")
- bics<-c(bics,bic)
- cat("Done\n")
-}
+      cat("Centroid distribution:",centroid_distribution.norm,"\n")
+  }
+   cat("Unif:",bic,"\n")
+   bics<-c(bics,bic)
+   cat("Done\n")
+  }
   
 ############################
-# BEST K
+#   BEST K
 ############################
   
 best_clusterisation <- multi_centroidi[which(bics == max(bics))]
@@ -291,13 +294,13 @@ summary_df <- data.frame(
   
 write.csv(
   summary_df,
-  file = paste0(output_sd, "/summary_UNIF.csv"),
+  file = paste0(output_multikmeans, "/summary_UNIF.csv"),
   row.names = FALSE
 )
   
 # FILE BEST K 
 best_clusterisation_file <- paste0(
-  output_sd,
+  output_multikmeans,
   "/centroid_classification_assignment_",
   best_clusterisation,
   ".csv"
@@ -305,7 +308,7 @@ best_clusterisation_file <- paste0(
   
 write.csv(
   data.frame(best_K = best_clusterisation),
-  file = paste0(output_sd, "/best_K.csv"),
+  file = paste0(output_multikmeans, "/best_K.csv"),
   row.names = FALSE
 )
   

@@ -10,17 +10,17 @@ options(warn = -1)
 
 
 ############################
-# 1. LETTURA ARGOMENTI
+#   LETTURA ARGOMENTI
 ############################
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) < 5) {
-  stop("Usage: RScript multikmeans_coords_raw_dataset.R <input_csv> <k_values> <max_iter> <coords> <features> [invert] [standardize] [year]")
+if (length(args) < 8) {
+  stop("Usage: RScript multikmeans_coords_raw_dataset.R <input_csv> <k_values> <max_iter> <coords> <features> [invert] [standardize] <year>")
 }
 
 ############################
-# INPUT FILE
+#   INPUT FILE
 ############################
 
 variables_risk1_standardized_file <- args[1]
@@ -30,7 +30,7 @@ if (!file.exists(variables_risk1_standardized_file)) {
 }
 
 ############################
-# K VALUES (multi_centroidi)
+#   K VALUES (multi_centroidi)
 ############################
 
 if (grepl(":", args[2])) {
@@ -45,47 +45,44 @@ if (grepl(":", args[2])) {
 }
 
 ############################
-# ITERAZIONI K-MEANS
+#   ITERAZIONI K-MEANS
 ############################
 
 N <- as.numeric(args[3])
 
 ############################
-# FEATURES + COORDINATE
+#   FEATURES + COORDINATE
 ############################
 
 coord_cols <- strsplit(args[4], ",")[[1]]  
 selected_features <- strsplit(args[5], ",")[[1]] 
+
 invert_vars <- if (length(args) >= 6) strsplit(args[6], ",")[[1]] else c()
 standardize_vars <- if (length(args) >= 7) strsplit(args[7], ",")[[1]] else c()
 
 
 ############################
-# OUTPUT FOLDER
+#   OUTPUT FOLDER
 ############################
 
-output_sd_coords <- "output_sd_coords"
+output_std <- "output_std"
 
-if (!dir.exists(output_sd_coords)) {
-  dir.create(output_sd_coords, recursive = TRUE)
-  cat("Created output folder:", output_sd_coords, "\n")
+if (!dir.exists(output_std)) {
+  dir.create(output_std, recursive = TRUE)
+  cat("Created output folder:", output_std, "\n")
 } else {
-  cat("Output folder already exists:", output_sd_coords, "\n")
+  cat("Output folder already exists:", output_std, "\n")
 }
 ############################
-# YEAR EXTRACTION
+#   YEAR EXTRACTION
 ############################
 
-year <- if (length(args) >= 8 && nchar(trimws(args[8])) > 0) {
-  trimws(args[8])
-} else {
-  gsub("\\D", "", variables_risk1_standardized_file)
-}
+year <- args[8] 
 
 cat("Year used:", year, "\n")
 
 ############################
-# 2. LETTURA DATI
+#   LETTURA DATI
 ############################
 
 variables_risk1_standardized <- read_csv(variables_risk1_standardized_file) %>% drop_na()
@@ -93,7 +90,7 @@ variables_risk1_standardized <- read_csv(variables_risk1_standardized_file) %>% 
 selection <- variables_risk1_standardized
 
 ############################
-# 2a. PREPROCESSING VARIABILI
+#   PREPROCESSING VARIABILI
 ############################
 
 # Coordinate (esplicite)
@@ -129,7 +126,7 @@ selection <- cbind(coords, processed_data)
 
 
 ############################
-# 2a-bis. UPDATE FEATURE NAMES
+#   UPDATE FEATURE NAMES
 ############################
 
 updated_features <- selected_features
@@ -153,12 +150,12 @@ for (i in seq_along(selected_features)) {
 selected_features <- updated_features
 
 ############################
-# 2c. SALVATAGGIO DATASET PREPROCESSATO
+#   SALVATAGGIO DATASET PREPROCESSATO
 ############################
 
 # nome file: input + _processing.csv
 input_basename <- tools::file_path_sans_ext(basename(variables_risk1_standardized_file))
-processed_filename <- paste0(output_sd_coords, "/", input_basename, "_processing.csv")
+processed_filename <- paste0(output_std, "/", input_basename, "_processing.csv")
 
 # dataset con coordinate + variabili preprocessate
 processed_output <- cbind(coords, processed_data)
@@ -172,11 +169,9 @@ write.csv(
 cat("Preprocessed dataset saved to:", processed_filename, "\n")
 
 ############################
-# 2b. CONTROLLO K
+#   CONTROLLO K
 ############################
 
-# FIX #1: selected_features_coords non esiste ancora qui; si usa selection[, selected_features]
-# che contiene già i dati preprocessati con i nomi aggiornati
 v_check <- as.data.frame(selection[, selected_features])
 max_k_allowed <- floor(nrow(v_check) / 2)
 
@@ -189,7 +184,7 @@ if (any(multi_centroidi > max_k_allowed)) {
 }
 
 ############################
-# 3. LOOP SUI K
+#   LOOP SUI K
 ############################
 
 bics <- c()
@@ -224,8 +219,7 @@ for (n_centroidi in multi_centroidi) {
   # DEVIAZIONE STANDARD
   ############################
   
-  # FIX #2: rimosso il commento alla versione con [3:...] che era fuorviante;
-  # feature_names è correttamente selected_features (senza slice hardcoded)
+  
   feature_names <- selected_features
   
   centroidi_sd <- matrix(nrow = n_centroidi, ncol = (ncol(v) - 1))
@@ -252,13 +246,12 @@ for (n_centroidi in multi_centroidi) {
   # che segnala come bug.
   
   # possibile correzione
-  v_quantili <- apply(v[, feature_names], 2, quantile)   #questo non cosidera la colonna distance_class neò calcolo dei quartili
+  v_quantili <- apply(v[, feature_names], 2, quantile)   #questo non considera la colonna distance_class nel calcolo dei quartili
   
   centroidi_labelled <- matrix("M", nrow = nrow(centroidi), ncol = length(feature_names),
                                dimnames = list(NULL, feature_names))
   
-  # FIX #4: confronto per nome di colonna invece che per indice numerico,
-  # così centroidi e v_quantili sono sempre allineati
+
   for (centroide in 1:nrow(centroidi)) {
     for (feat in feature_names) {
       if (centroidi[centroide, feat] < v_quantili["50%", feat]) {
@@ -313,7 +306,7 @@ for (n_centroidi in multi_centroidi) {
   
   write.csv(
     centroidi_annotated,
-    file = paste0(output_sd_coords, "/all_centroidi_annotated_", n_centroidi, "_", year, "_sd.csv"),
+    file = paste0(output_std, "/all_centroidi_annotated_", n_centroidi, "_", year, "_sd.csv"),
     row.names = FALSE
   )
   
@@ -323,15 +316,12 @@ for (n_centroidi in multi_centroidi) {
   
   v$distance_class_interpretation <- centroide_interpretazione[v$distance_class]
   
-  # FIX #6: evitare colonne duplicate in nuovo_v
-  # coords contiene le colonne coordinate; v ora contiene feature + distance_class + interpretation
-  # si escludono da v le eventuali colonne già presenti in coords prima del cbind
   v_no_coords <- v[, !(names(v) %in% names(coords)), drop = FALSE]
   nuovo_v <- cbind(coords, v_no_coords)
   
   write.csv(
     nuovo_v,
-    file = paste0(output_sd_coords, "/all_centroid_classification_assignment_", n_centroidi, "_", year, "_five_spp.csv"),
+    file = paste0(output_std, "/all_centroid_classification_assignment_", n_centroidi, "_", year, "_five_spp.csv"),
     row.names = FALSE
   )
   
@@ -393,13 +383,13 @@ summary_df <- data.frame(
 
 write.csv(
   summary_df,
-  file = paste0(output_sd_coords, "/summary_UNIF.csv"),
+  file = paste0(output_std, "/summary_UNIF.csv"),
   row.names = FALSE
 )
 
 # FILE BEST K 
 best_clusterisation_file <- paste0(
-  output_sd_coords,
+  output_std,
   "/centroid_classification_assignment_",
   best_clusterisation,
   ".csv"
@@ -407,7 +397,7 @@ best_clusterisation_file <- paste0(
 
 write.csv(
   data.frame(best_K = best_clusterisation),
-  file = paste0(output_sd_coords, "/best_K.csv"),
+  file = paste0(output_std, "/best_K.csv"),
   row.names = FALSE
 )
 
