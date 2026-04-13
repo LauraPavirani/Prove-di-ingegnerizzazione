@@ -1,8 +1,3 @@
-# CODICE CHE PRENDE IN IN PUT IL FILE RAW ORIGINALE
-# OVVERO CON LE VARIABILI NON PROCESSATO MA ANCORA DA INVERTIRE E STANDARDIZZARE
-# QUESTO CODICE ESPLICITA LE COORDINATE (longitude e latitude)
-
-
 rm(list = ls())
 
 library(tidyverse)
@@ -10,48 +5,48 @@ options(warn = -1)
 
 
 ############################
-#   LETTURA ARGOMENTI
+#   READ INPUT ARGUMENTS
 ############################
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) < 8) {
-  stop("Usage: RScript multikmeans_coords_raw_dataset.R <input_csv> <k_values> <max_iter> <coords> <features> [invert] [standardize] <year>")
+if (length(args) < 5) {
+  stop("Usage: RScript multikmeans_coords_raw_dataset.R <input_csv> <k_values> <max_iter> <coords> <features> [invert] [standardize] [time]")
 }
 
 ############################
 #   INPUT FILE
 ############################
 
-variables_risk1_standardized_file <- args[1]
+input_file <- args[1]
 
-if (!file.exists(variables_risk1_standardized_file)) {
+if (!file.exists(input_file)) {
   stop("Input file does not exist")
 }
 
 ############################
-#   K VALUES (multi_centroidi)
+#   K VALUES 
 ############################
 
 if (grepl(":", args[2])) {
   parts <- as.numeric(strsplit(args[2], ":")[[1]])
-  multi_centroidi <- seq(
+  k_values <- seq(
     from = parts[1],
     to = parts[2],
     by = ifelse(length(parts) == 3, parts[3], 1)
   )
 } else {
-  multi_centroidi <- as.numeric(strsplit(args[2], ",")[[1]])
+  k_values <- as.numeric(strsplit(args[2], ",")[[1]])
 }
 
 ############################
-#   ITERAZIONI K-MEANS
+#   K-MEANS ITERATIONS
 ############################
 
 N <- as.numeric(args[3])
 
 ############################
-#   FEATURES + COORDINATE
+#   FEATURES + COORDINATES
 ############################
 
 coord_cols <- strsplit(args[4], ",")[[1]]  
@@ -65,38 +60,43 @@ standardize_vars <- if (length(args) >= 7) strsplit(args[7], ",")[[1]] else c()
 #   OUTPUT FOLDER
 ############################
 
-output_std <- "output_std"
+output_MKM <- "output_MKM"
 
-if (!dir.exists(output_std)) {
-  dir.create(output_std, recursive = TRUE)
-  cat("Created output folder:", output_std, "\n")
+if (!dir.exists(output_MKM)) {
+  dir.create(output_MKM, recursive = TRUE)
+  cat("Created output folder:", output_MKM, "\n")
 } else {
-  cat("Output folder already exists:", output_std, "\n")
+  cat("Output folder already exists:", output_MKM, "\n")
 }
 ############################
-#   YEAR EXTRACTION
+#   TIME (optional)
 ############################
 
-year <- args[8] 
+time <- if (length(args) >= 8 && nchar(trimws(args[8])) > 0) {
+  paste0("_", trimws(args[8]))
+} else {
+  ""
+}
 
-cat("Year used:", year, "\n")
+
+cat("time used:", time, "\n")
 
 ############################
-#   LETTURA DATI
+#   DATA LOADING
 ############################
 
-variables_risk1_standardized <- read_csv(variables_risk1_standardized_file) %>% drop_na()
+variables_risk1_standardized <- read_csv(input_file) %>% drop_na()
 
 selection <- variables_risk1_standardized
 
 ############################
-#   PREPROCESSING VARIABILI
+#   VARIABLE PRE-PROCESSING
 ############################
 
-# Coordinate (esplicite)
+# Coordinates 
 coords <- selection[, coord_cols]
 
-# SOLO le feature
+# ONLY FEATURES
 data_vars <- selection[, selected_features]
 
 processed_data <- data.frame(matrix(nrow = nrow(data_vars), ncol = 0))
@@ -106,13 +106,13 @@ for (var_name in colnames(data_vars)) {
   x <- data_vars[[var_name]]
   new_name <- var_name
   
-  # INVERSIONE (con gestione dello 0)
+  # INVERSION (with zero handling)
   if (var_name %in% invert_vars) {
     x <- ifelse(x == 0, 0, 1 / x)
     new_name <- paste0(new_name, "_inv")
   }
   
-  # STANDARDIZZAZIONE
+  # STANDARDIZATION
   if (var_name %in% standardize_vars) {
     x <- scale(x)[,1]
     new_name <- paste0(new_name, "_std")
@@ -121,7 +121,7 @@ for (var_name in colnames(data_vars)) {
   processed_data[[new_name]] <- x
 }
 
-# aggiorno dataset finale
+# update final dataset
 selection <- cbind(coords, processed_data)
 
 
@@ -129,7 +129,7 @@ selection <- cbind(coords, processed_data)
 #   UPDATE FEATURE NAMES
 ############################
 
-updated_features <- selected_features
+processed_feature_names <- selected_features
 
 for (i in seq_along(selected_features)) {
   
@@ -144,20 +144,20 @@ for (i in seq_along(selected_features)) {
     new_name <- paste0(new_name, "_std")
   }
   
-  updated_features[i] <- new_name
+  processed_feature_names[i] <- new_name
 }
 
-selected_features <- updated_features
+selected_features <- processed_feature_names
 
 ############################
-#   SALVATAGGIO DATASET PREPROCESSATO
+#   SAVE PREPROCESSED DATASET
 ############################
 
-# nome file: input + _processing.csv
-input_basename <- tools::file_path_sans_ext(basename(variables_risk1_standardized_file))
-processed_filename <- paste0(output_std, "/", input_basename, "_processing.csv")
+# file name: input + _processing.csv
+input_basename <- tools::file_path_sans_ext(basename(input_file))
+processed_filename <- paste0(output_MKM, "/", input_basename, "_processing.csv")
 
-# dataset con coordinate + variabili preprocessate
+# dataset with coordinates + preprocessed variables
 processed_output <- cbind(coords, processed_data)
 
 write.csv(
@@ -169,14 +169,14 @@ write.csv(
 cat("Preprocessed dataset saved to:", processed_filename, "\n")
 
 ############################
-#   CONTROLLO K
+#   K VALIDATION
 ############################
 
 v_check <- as.data.frame(selection[, selected_features])
 max_k_allowed <- floor(nrow(v_check) / 2)
 
-if (any(multi_centroidi > max_k_allowed)) {
-  invalid_ks <- multi_centroidi[multi_centroidi > max_k_allowed]
+if (any(k_values > max_k_allowed)) {
+  invalid_ks <- k_values[k_values > max_k_allowed]
   stop(paste0(
     "ERROR: K too large: ",
     paste(invalid_ks, collapse = ", ")
@@ -184,129 +184,127 @@ if (any(multi_centroidi > max_k_allowed)) {
 }
 
 ############################
-#   LOOP SUI K
+#   MULTI K-MEANS
 ############################
 
 bics <- c()
 
-for (n_centroidi in multi_centroidi) {
+for (k in k_values) {
   
-  cat("####I'm analyzing ", n_centroidi, "centroids\n")
+  cat("####I'm analyzing ", k, "centroids\n")
   
   selected_features_coords <- selection[, selected_features]
   
-  # v è direttamente il dataset delle feature
-  v <- as.data.frame(selected_features_coords)
+  # clustering_data is directly the feature dataset
+  clustering_data <- as.data.frame(selected_features_coords)
   
   ############################
-  # CENTROIDI
+  # centroids
   ############################
   
-  centroidi <- matrix(nrow = n_centroidi, ncol = ncol(v))
+  centroids <- matrix(nrow = k, ncol = ncol(clustering_data))
   
-  for (centroide in 1:nrow(centroidi)) {
-    centroidi[centroide, ] <- as.numeric(v[centroide, ])
+  for (centroid_idx in 1:nrow(centroids)) {
+    centroids[centroid_idx, ] <- as.numeric(clustering_data[centroid_idx, ])
   }
   
-  km <- kmeans(as.matrix(v), centers = as.matrix(centroidi), iter.max = N)
+  km <- kmeans(as.matrix(clustering_data), centers = as.matrix(centroids), iter.max = N)
   
   selected_features_coords$distance_class <- km$cluster
-  v$distance_class <- km$cluster
+  clustering_data$distance_class <- km$cluster
   
-  centroidi <- as.matrix(km$centers)
+  centroids <- as.matrix(km$centers)
   
   ############################
-  # DEVIAZIONE STANDARD
+  # STANDARD DEVIATION
   ############################
   
   
   feature_names <- selected_features
   
-  centroidi_sd <- matrix(nrow = n_centroidi, ncol = (ncol(v) - 1))
+  centroid_sd <- matrix(nrow = k, ncol = (ncol(clustering_data) - 1))
   
-  for (centroide in 1:n_centroidi) {
-    punti_cluster <- v[v$distance_class == centroide, 1:(ncol(v) - 1)]
+  for (centroid_idx in 1:k) {
+    cluster_points <- clustering_data[clustering_data$distance_class == centroid_idx, 1:(ncol(clustering_data) - 1)]
     
-    if (nrow(punti_cluster) > 1) {
-      centroidi_sd[centroide, ] <- apply(punti_cluster, 2, sd)
+    if (nrow(cluster_points) > 1) {
+      centroid_sd[centroid_idx, ] <- apply(cluster_points, 2, sd)
     } else {
-      centroidi_sd[centroide, ] <- 0
+      centroid_sd[centroid_idx, ] <- 0
     }
   }
   
-  centroidi_sd_df <- as.data.frame(centroidi_sd)
-  names(centroidi_sd_df) <- paste0(feature_names, "_sd")
+  centroid_sd_df <- as.data.frame(centroid_sd)
+  names(centroid_sd_df) <- paste0(feature_names, "_sd")
   
   ############################
-  # QUANTILI
+  # QUANTILES
   ############################
   
-  # nei codici usati finora si ha questo:
-  # v_quantili <- apply(v, 2, quantile)
-  # che segnala come bug.
+  # feature_quantiles <- apply(clustering_data, 2, quantile)
   
-  # possibile correzione
-  v_quantili <- apply(v[, feature_names], 2, quantile)   #questo non considera la colonna distance_class nel calcolo dei quartili
+  # better option...
+  feature_quantiles <- apply(clustering_data[, feature_names], 2, quantile)   # this does not include the distance_class column in the quantile computation
   
-  centroidi_labelled <- matrix("M", nrow = nrow(centroidi), ncol = length(feature_names),
+  centroid_labels <- matrix("M", nrow = nrow(centroids), ncol = length(feature_names),
                                dimnames = list(NULL, feature_names))
   
 
-  for (centroide in 1:nrow(centroidi)) {
+  for (centroid_idx in 1:nrow(centroids)) {
     for (feat in feature_names) {
-      if (centroidi[centroide, feat] < v_quantili["50%", feat]) {
-        centroidi_labelled[centroide, feat] <- "L"
-      } else if (centroidi[centroide, feat] > v_quantili["75%", feat]) {
-        centroidi_labelled[centroide, feat] <- "H"
+      if (centroids[centroid_idx, feat] < feature_quantiles["50%", feat]) {
+        centroid_labels[centroid_idx, feat] <- "L"
+      } else if (centroids[centroid_idx, feat] > feature_quantiles["75%", feat]) {
+        centroid_labels[centroid_idx, feat] <- "H"
       }
     }
   }
   
   ############################
-  # INTERPRETAZIONE
+  # INTERPRETATION
   ############################
   
-  c_H <- rowSums(centroidi_labelled == "H")
-  c_M <- rowSums(centroidi_labelled == "M")
-  c_L <- rowSums(centroidi_labelled == "L")
+  c_H <- rowSums(centroid_labels == "H")
+  c_M <- rowSums(centroid_labels == "M")
+  c_L <- rowSums(centroid_labels == "L")
   
-  centroide_interpretazione <- character(length(c_H))
+  cluster_attention_level <- character(length(c_H))
   
   for (i in 1:length(c_H)) {
     if (c_H[i] > c_L[i] & c_H[i] > c_M[i]) {
-      centroide_interpretazione[i] <- "high attention"
+      cluster_attention_level[i] <- "high attention"
     } else if (c_L[i] >= c_H[i] & c_L[i] > c_M[i]) {
-      centroide_interpretazione[i] <- "low attention"
+      cluster_attention_level[i] <- "low attention"
     } else {
-      centroide_interpretazione[i] <- "medium attention"
+      cluster_attention_level[i] <- "medium attention"
     }
   }
   
   ############################
-  # OUTPUT CENTROIDI
+  # OUTPUT centroids
   ############################
   
-  centroidi_df <- as.data.frame(centroidi)
-  centroidi_labelled_df <- as.data.frame(centroidi_labelled)
+  centroids_df <- as.data.frame(centroids)
+  centroid_labels_df <- as.data.frame(centroid_labels)
   
-  names(centroidi_df) <- feature_names
-  names(centroidi_labelled_df) <- paste0(feature_names, "_label")
+  names(centroids_df) <- feature_names
+  names(centroid_labels_df) <- paste0(feature_names, "_label")
   
-  centroid_id <- data.frame(centroid_id = 1:nrow(centroidi_df))
+  centroid_id <- data.frame(centroid_id = 1:nrow(centroids_df))
   
-  centroidi_annotated <- centroid_id
+  centroids_annotated <- centroid_id
   
   for (i in seq_along(feature_names)) {
-    centroidi_annotated[[feature_names[i]]] <- centroidi_df[[i]]
-    centroidi_annotated[[paste0(feature_names[i], "_sd")]] <- centroidi_sd_df[[i]]
-    centroidi_annotated[[paste0(feature_names[i], "_label")]] <- centroidi_labelled_df[[i]]
+    centroids_annotated[[feature_names[i]]] <- centroids_df[[i]]
+    centroids_annotated[[paste0(feature_names[i], "_sd")]] <- centroid_sd_df[[i]]
+    centroids_annotated[[paste0(feature_names[i], "_label")]] <- centroid_labels_df[[i]]
   }
   
-  centroidi_annotated$attention_level <- centroide_interpretazione
+  centroids_annotated$attention_level <- cluster_attention_level
   
   write.csv(
-    centroidi_annotated,
-    file = paste0(output_std, "/all_centroidi_annotated_", n_centroidi, "_", year, "_sd.csv"),
+    centroids_annotated,
+    file =paste0(output_MKM, "/centroids_", k, "_k_values", time, ".csv"),
     row.names = FALSE
   )
   
@@ -314,14 +312,14 @@ for (n_centroidi in multi_centroidi) {
   # OUTPUT DATASET
   ############################
   
-  v$distance_class_interpretation <- centroide_interpretazione[v$distance_class]
+  clustering_data$distance_class_interpretation <- cluster_attention_level[clustering_data$distance_class]
   
-  v_no_coords <- v[, !(names(v) %in% names(coords)), drop = FALSE]
-  nuovo_v <- cbind(coords, v_no_coords)
+  data_no_coords <- clustering_data[, !(names(clustering_data) %in% names(coords)), drop = FALSE]
+  final_dataset <- cbind(coords, data_no_coords)
   
   write.csv(
-    nuovo_v,
-    file = paste0(output_std, "/all_centroid_classification_assignment_", n_centroidi, "_", year, "_five_spp.csv"),
+    final_dataset,
+    file = paste0(output_MKM, "/clustering_", k, "_k_values", time, ".csv"),
     row.names = FALSE
   )
   
@@ -370,26 +368,26 @@ for (n_centroidi in multi_centroidi) {
 # BEST K
 ############################
 
-best_clusterisation <- multi_centroidi[which(bics == max(bics))]
+best_clusterisation <- k_values[which(bics == max(bics))]
 
 cat("Best clustering: K=", best_clusterisation, "\n")
 
 
 # SUMMARY 
-summary_df <- data.frame(
-  K = multi_centroidi,
+results_summary <- data.frame(
+  K = k_values,
   UNIF = bics
 )
 
 write.csv(
-  summary_df,
-  file = paste0(output_std, "/summary_UNIF.csv"),
+  results_summary,
+  file = paste0(output_MKM, "/summary_UNIF.csv"),
   row.names = FALSE
 )
 
 # FILE BEST K 
 best_clusterisation_file <- paste0(
-  output_std,
+  output_MKM,
   "/centroid_classification_assignment_",
   best_clusterisation,
   ".csv"
@@ -397,7 +395,7 @@ best_clusterisation_file <- paste0(
 
 write.csv(
   data.frame(best_K = best_clusterisation),
-  file = paste0(output_std, "/best_K.csv"),
+  file = paste0(output_MKM, "/best_K.csv"),
   row.names = FALSE
 )
 
