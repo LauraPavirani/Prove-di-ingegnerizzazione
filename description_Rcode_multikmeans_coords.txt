@@ -1,0 +1,105 @@
+############################################################
+# MULTI K-MEANS CLUSTERING SCRIPT (PREPROCESSED DATA VERSION)
+# dati già pronti all'uso con però le coordinate da esplicitare
+############################################################
+
+
+############################################################
+# DESCRIPTION: multikmeans_coords.R
+###########################################################
+
+# INPUT FILE:
+# - Il file di input è un CSV già completamente pre-processato
+# - Le variabili sono già:
+#   * pulite (NA rimossi)
+#   * già invertite se necessario
+#   * già standardizzate (e quindi confrontabili tra loro) se necessario
+#
+# - Il dataset è già pronto per la fase di clustering
+# - NON viene eseguito alcun preprocessing (no scaling, no inversione)
+
+# STRUTTURA DATASET INPUT:
+# - Due colonne contengono coordinate spaziali (es. lon, lat) (NON necessariamente devono essere le prime due colonne)
+# - Le altre colonne contengono le variabili stressors (PRONTE)
+
+
+# COORDINATE:
+# - Le colonne delle coordinate sono specificate da linea di comando (NON necessariamente devono essere le prime due colonne)
+# - Vengono mantenute nel dataset ma NON utilizzate nel clustering
+
+# FEATURES USATE PER IL CLUSTERING:
+# - Le variabili da includere nel clustering sono definite da linea di comando
+# - Devono essere già pronte (standardizzate, invertite o no) nel file di input
+
+# ORDINE ARGOMENTI DA RIGA DI COMANDO (BASH):
+# Rscript multikmeans.R <input_csv> <k_values> <max_iter> <coords> <features> <year>
+#
+# 1. input_csv  -> dataset già preprocessato e pronto per clustering
+# 2. k_values   -> lista o intervallo di K da testare (es. "3,5,7" oppure "3:10")
+# 3. max_iter   -> numero massimo di iterazioni del K-means
+# 4. coords     -> colonne coordinate (es. "lon,lat")
+# 5. features   -> variabili da usare nel clustering (già standardizzate)
+# 6. year       -> anno di riferimento per naming output file
+
+# OUTPUT DIRECTORY:
+# - Tutti i risultati vengono salvati nella cartella:
+#   output_coords/
+
+# OUTPUT FILES GENERATI:
+
+# 1. CENTROIDI + STATISTICHE + INTERPRETAZIONE:
+#    all_centroidi_annotated_<K>_<year>_sd.csv
+#    - centroidi per ogni cluster
+#    - deviazione standard intra-cluster
+#    - etichettatura delle feature (L/M/H rispetto ai quantili)
+#    - interpretazione del cluster:
+#        * low attention
+#        * medium attention
+#        * high attention
+
+# 2. ASSEGNAZIONE CLUSTER AI PUNTI:
+#    all_centroid_classification_assignment_<K>_<year>_five_spp.csv
+#    - coordinate originali
+#    - variabili del dataset preprocessato
+#    - cluster assegnato
+#    - interpretazione del cluster
+
+# 3. VALUTAZIONE QUALITÀ CLUSTERING:
+#    summary_UNIF.csv
+#    - indice UNIF per ogni valore di K testato
+#    - misura di uniformità della distribuzione dei cluster
+
+# 4. MIGLIOR K AUTOMATICO:
+#    best_K.csv
+#    - valore di K con UNIF massimo
+
+# LOGICA DELLO SCRIPT:
+
+# PER OGNI VALORE DI K:
+# - inizializza K-means usando i primi punti del dataset come centroidi iniziali
+# - esegue clustering iterativo fino a convergenza (iter.max definito da input)
+#
+# - per ogni cluster:
+#   * calcola deviazione standard delle variabili
+#   * confronta centroidi con distribuzione globale (quantili 50% e 75%)
+#   * assegna etichette:
+#       - L = low
+#       - M = medium
+#       - H = high
+#
+# - interpreta ogni cluster come:
+#       * low attention
+#       * medium attention
+#       * high attention
+#
+# - calcola indice UNIF:
+#   * misura la distribuzione dei punti tra i cluster
+#   * penalizza cluster sbilanciati o con pochi elementi
+#
+# - seleziona automaticamente il miglior K (massimo UNIF)
+
+# NOTE IMPORTANTI:
+# - Il dataset deve essere già pronto per il clustering (NO preprocessing interno)
+# - Le variabili devono essere comparabili (già standardizzate prima dell’esecuzione)
+# - Le coordinate non entrano nel clustering ma vengono mantenute per output spaziali
+############################################################

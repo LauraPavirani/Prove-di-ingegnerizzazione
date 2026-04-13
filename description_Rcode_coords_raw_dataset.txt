@@ -1,0 +1,117 @@
+############################################################
+# MULTI K-MEANS CLUSTERING + PREPROCESSING PIPELINE
+# (COORDINATES + FEATURE TRANSFORMATION VERSION)
+############################################################
+
+############################################################
+# DESCRIPTION: multikmeans_coords_raw_dataset.R
+############################################################
+
+
+# INPUT FILE:
+# - Il file di input è un CSV già pulito (NA rimossi) ma NON standardizzato/pre-processato
+# - Contiene:
+#   * coordinate spaziali (es. lat/lon o simili)
+#   * variabili
+#
+# - Il preprocessing per rendere le variabili stressors comparabili (inversione e standardizzazione) viene eseguito DENTRO lo script
+
+# COORDINATE:
+# - Le colonne delle coordinate sono specificate ESPLICITAMENTE da riga di comando
+# - Vengono mantenute nel dataset ma NON utilizzate nel clustering
+
+# FEATURE USATE PER IL CLUSTERING:
+# - Le colonne delle variabili da analizzare sono definite da riga di comando
+# - Possono essere trasformate tramite:
+#   * inversione (invert_vars → 1/x)
+#   * standardizzazione (standardize_vars → z-score)
+
+# PREPROCESSING:
+# - Inversione:
+#   * applicata alle variabili indicate
+#   * gestione dello zero (0 rimane 0)
+#
+# - Standardizzazione:
+#   * scaling z-score (scale)
+#
+# - Il dataset ORA processato viene salvato automaticamente prima del clustering
+
+# ORDINE ARGOMENTI DA RIGA DI COMANDO (BASH):
+# Rscript multikmeans_coords_raw_dataset.R <input_csv> <k_values> <max_iter> <coords> <features> [invert] [standardize] <year>
+#
+# 1. input_csv       -> file CSV di input (raw o semi-processato) originale
+# 2. k_values        -> lista o range di K (es. "3,5,7" oppure "3:10")
+# 3. max_iter        -> numero massimo di iterazioni K-means
+# 4. coords          -> colonne coordinate (es. "lon,lat")
+# 5. features        -> variabili da usare nel clustering che prima però vengono rielaborate
+# 6. invert (opt)    -> variabili da invertire (1/x)
+# 7. standardize(opt)-> variabili da standardizzare (z-score)
+# 8. year            -> anno di riferimento per naming output file
+#DEVONO SEMPRE ESSERE 8, SE NON CI SONO VARIABILI DA INVERTIRE E/O STD LASCIARE LO STESSO "" NELLA BASH
+
+# OUTPUT DIRECTORY:
+# - Tutti i risultati vengono salvati nella cartella:
+#   output_std/
+
+# OUTPUT FILES GENERATI:
+
+# 1. DATASET PROCESSATO:
+#    <input_name>_processing.csv
+#    - contiene coordinate + variabili trasformate (inversione/standardizzazione)
+
+# 2. CENTROIDI + STATISTICHE + INTERPRETAZIONE:
+#    all_centroidi_annotated_<K>_<year>_sd.csv
+#    - centroidi per ogni cluster
+#    - deviazione standard intra-cluster
+#    - etichettatura feature (L/M/H)
+#    - interpretazione cluster:
+#        * low attention
+#        * medium attention
+#        * high attention
+
+# 3. ASSEGNAZIONE CLUSTER AI PUNTI:
+#    all_centroid_classification_assignment_<K>_<year>_five_spp.csv
+#    - coordinate originali
+#    - variabili preprocessate
+#    - cluster assegnato
+#    - interpretazione del cluster
+
+# 4. VALUTAZIONE QUALITÀ CLUSTERING:
+#    summary_UNIF.csv
+#    - valore UNIF per ogni K testato
+
+# 5. MIGLIOR K AUTOMATICO:
+#    best_K.csv
+#    - valore di K con UNIF massimo
+
+# LOGICA DELLO SCRIPT:
+
+# PER OGNI K:
+# - inizializza K-means con centroidi dai primi punti
+# - esegue clustering iterativo
+# - calcola centroidi e cluster assignment
+#
+# - per ogni cluster:
+#   * calcola deviazione standard per feature
+#   * confronta centroidi con quantili (50% e 75%)
+#   * assegna etichette:
+#       - L = basso
+#       - M = medio
+#       - H = alto
+#
+# - interpreta ogni cluster come:
+#       * low attention
+#       * medium attention
+#       * high attention
+#
+# - calcola indice UNIF:
+#   * misura quanto i cluster sono bilanciati
+#   * penalizza distribuzioni sbilanciate o cluster troppo piccoli
+#
+# - seleziona automaticamente il miglior K (UNIF massimo)
+
+# NOTE IMPORTANTI:
+# - K troppo grandi vengono automaticamente scartati
+# - Il preprocessing avviene prima del clustering e cambia i nomi delle variabili
+# - Le trasformazioni (inv/std) modificano direttamente il dataset usato per K-means
+############################################################

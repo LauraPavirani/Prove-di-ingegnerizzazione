@@ -1,0 +1,70 @@
+############################################################
+# MULTI K-MEANS CLUSTERING SCRIPT - DESCRIPTION
+############################################################
+
+
+############################################################
+# Nome codice R: multikmeans.R
+############################################################
+
+
+
+# INPUT FILE:
+# - Il file di input è un CSV già preprocessato e standardizzato
+# - I dati sono già in formato "stressors" (variabili numeriche pronte per clustering)
+# - Non vengono effettuate trasformazioni o scaling nel codice
+
+# COORDINATE:
+# - Le coordinate spaziali (es. lon/lat) sono assunte come le prime 2 colonne del dataset
+# - Queste colonne vengono mantenute ma NON utilizzate nel clustering
+
+# FEATURES USATE PER IL CLUSTERING:
+# - Le colonne da analizzare vengono specificate da linea di comando
+# - Devono includere anche le coordinate nei primi 2 campi della selezione, ma solo le colonne dalla 3 in poi sono usate per il clustering
+
+# ORDINE ARGOMENTI DA RIGA DI COMANDO (BASH):
+# Rscript multikmeans.R <input_csv> <k_values> <max_iter> <columns> <year>
+#
+# 1. input_csv  -> file CSV di input (già standardizzato e preprocessato)
+# 2. k_values   -> lista o range di K da testare (es. "3,5,7" oppure "3:10")
+# 3. max_iter    -> numero massimo di iterazioni del K-means
+# 4. columns     -> colonne da utilizzare (formato: "col1,col2,col3,...")
+# 5. year        -> anno di riferimento per naming output file
+
+# OUTPUT DIRECTORY:
+# - Tutti i risultati vengono salvati nella cartella:
+#   output_multikmeans/
+
+# OUTPUT FILES GENERATI:
+# - Centroidi con statistiche e interpretazione:
+#   all_centroidi_annotated_<K>_<year>_sd.csv
+#
+# - Assegnazione dei cluster ai punti del dataset:
+#   all_centroid_classification_assignment_<K>_<year>_five_spp.csv
+#
+# - Summary della qualità del clustering (UNIF):
+#   summary_UNIF.csv
+#
+# - Miglior K selezionato automaticamente:
+#   best_K.csv
+
+# LOGICA DELLO SCRIPT:
+# - Per ogni valore di K:
+#   * esegue K-means con inizializzazione deterministica dai primi punti
+#   * calcola centroidi dei cluster
+#   * calcola deviazione standard intra-cluster per ogni feature
+#   * assegna etichette L/M/H rispetto ai quantili globali
+#   * interpreta ogni cluster come:
+#       - "low attention"
+#       - "medium attention"
+#       - "high attention"
+#
+# - Calcola un indice UNIF basato sulla distribuzione dei punti nei cluster
+#   (misura quanto i cluster sono bilanciati tra loro)
+#
+# - Seleziona automaticamente il miglior K (massimo UNIF)
+
+# NOTA IMPORTANTE:
+# - K troppo grandi vengono esclusi automaticamente se non validi
+# - Cluster con distribuzione estremamente sbilanciata vengono penalizzati
+############################################################
