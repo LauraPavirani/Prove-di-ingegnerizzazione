@@ -1,6 +1,10 @@
 library(tidyverse)
 options(warn = -1)
 
+############################
+#   READ INPUT ARGUMENTS
+############################
+
 args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) < 7) {
@@ -25,7 +29,6 @@ if (!file.exists(input_file)) {
   stop("Input file does not exist")
 }
 
-#df <- read_csv(input_file) %>% drop_na()
 df <- read_csv(input_file, show_col_types = FALSE) %>% drop_na()
 
 ############################
@@ -74,8 +77,6 @@ features2 <- paste0("\"", selected_features, "\"", collapse = " ")
 # RUN X-MEANS
 ############################
 
-
-
 command <- paste0(
   "java -jar ./XmeanCluster.jar ",
   "\"", input_file, "\" ",
@@ -108,7 +109,6 @@ execution_success <- length(which(grepl(pattern = "OK MaxEnt", x = XMeanCluster_
 
 
 
-
 ###########################
 # CLUSTER INTERPRETATION
 ###########################
@@ -126,74 +126,73 @@ df <- df %>%
 
 data_with_clusters <- df
 
-# fix cluster 0 (se presente)
+# fix cluster 0 (if present)
 max_cluster <- max(data_with_clusters$cluster, na.rm = TRUE)
 data_with_clusters$cluster[data_with_clusters$cluster == 0] <- max_cluster + 1
 
 
-v <- data_with_clusters[, selected_features, drop = FALSE]
+clustering_data <- data_with_clusters[, selected_features, drop = FALSE]
 
 
 
 # Calculate centroids for each cluster
 cluster_centroids <- data_with_clusters %>%
   group_by(cluster) %>%
-  summarise(across(all_of(names(v)), mean, na.rm = TRUE))
+  summarise(across(all_of(names(clustering_data)), mean, na.rm = TRUE))
 
 cluster_centroids <- cluster_centroids %>% select(-cluster)
 
 # Quantiles
-v_quantili <- apply(v, 2, quantile)
+feature_quantiles <- apply(clustering_data, 2, quantile)
 
 # Prepare the centroids matrix with "M" for medium
-centroidi_labelled <- matrix("M", nrow=nrow(cluster_centroids), ncol=ncol(cluster_centroids))
+centroid_labels <- matrix("M", nrow=nrow(cluster_centroids), ncol=ncol(cluster_centroids))
 
 
 ###############################################################################
 ######                  INTERPRETATION OF QUANTILES                      ######
 ###############################################################################
 
-# Multi K-means uses quartiles: 3 and 4
 
 # Filling labeled centroids
-for (centroide in 1:nrow(cluster_centroids)) {
-  for (feat in 1:(ncol(v))) {
-    if (cluster_centroids[centroide,feat]<v_quantili[3,feat]){    
-      centroidi_labelled[centroide, feat] <- "L"
+for (centroid_idx in 1:nrow(cluster_centroids)) {
+  for (feat in 1:(ncol(clustering_data))) {
+    if (cluster_centroids[centroid_idx,feat]<feature_quantiles[3,feat]){    
+      centroid_labels[centroid_idx, feat] <- "L"
     }
-    else if (cluster_centroids[centroide,feat]>v_quantili[4,feat]) {   
-      centroidi_labelled[centroide, feat] <- "H"
+    else if (cluster_centroids[centroid_idx,feat]>feature_quantiles[4,feat]) {   
+      centroid_labels[centroid_idx, feat] <- "H"
     }
     
   }
   
 }
 
-# Counting L, M, H to decide the level of risk
-c_H <- matrix(nrow = nrow(centroidi_labelled), ncol=1)
-c_M <- matrix(nrow = nrow(centroidi_labelled), ncol=1)
-c_L <- matrix(nrow = nrow(centroidi_labelled), ncol=1)
+# Counting L, M, H to decide the level of attention
+c_H <- matrix(nrow = nrow(centroid_labels), ncol=1)
+c_M <- matrix(nrow = nrow(centroid_labels), ncol=1)
+c_L <- matrix(nrow = nrow(centroid_labels), ncol=1)
 
-# Creating empty vector for risk interpretation centroids
-centroide_interpretazione <- matrix(nrow = nrow(centroidi_labelled), ncol=1)
+# Creating empty vector for attention interpretation centroids
+cluster_attention_level <- matrix(nrow = nrow(centroid_labels), ncol=1)
 
-# Counting the letters from centroidi_labelled
-for (r in 1:nrow(centroidi_labelled)) {
-  c_H[r] <- sum(centroidi_labelled[r,] == "H")
-  c_M[r] <- sum(centroidi_labelled[r,] == "M")
-  c_L[r] <- sum(centroidi_labelled[r,] == "L")
+# Counting the letters from centroid_labels
+for (r in 1:nrow(centroid_labels)) {
+  c_H[r] <- sum(centroid_labels[r,] == "H")
+  c_M[r] <- sum(centroid_labels[r,] == "M")
+  c_L[r] <- sum(centroid_labels[r,] == "L")
 }  
 
 # Assignment 
-for (i in 1:nrow(centroide_interpretazione)) {
+for (i in 1:nrow(cluster_attention_level)) {
   if (c_H[i]>c_L[i] & c_H[i]>c_M[i]) {
-    centroide_interpretazione[i] <- "high risk"
+    cluster_attention_level[i] <- "high attention"
   }
   else if (c_L[i]>=c_H[i] & c_L[i]>c_M[i]) {
-    centroide_interpretazione[i] <- "low risk"
+    cluster_attention_level[i] <- "low attention"
   }
   else{ 
-    centroide_interpretazione[i] <- "medium risk"
+    cluster_attention_level[i] <- "medium attention"
   }
 }
 
@@ -203,8 +202,8 @@ for (i in 1:nrow(centroide_interpretazione)) {
 data_with_clusters$distance_class_interpretation <- NA
 for (i in 1:nrow(cluster_centroids)) {
   indici <- which(data_with_clusters$cluster == i)
-  interpretazione <- centroide_interpretazione[i]
-  data_with_clusters$distance_class_interpretation[indici] <- interpretazione
+  interpretation <- cluster_attention_level[i]
+  data_with_clusters$distance_class_interpretation[indici] <- interpretation
 }
 
 
