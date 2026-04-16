@@ -16,7 +16,10 @@ if (length(args) < 7) {
        <min_elements_in_cluster> 
        <minimum_n_of_clusters> 
        <maximum_n_of_clusters> 
-       <maximum_iterations>")
+       <maximum_iterations>
+       [invert_vars]
+       [standardize_vars]
+       [time]")
 }
 
 ############################
@@ -29,7 +32,9 @@ if (!file.exists(input_file)) {
   stop("Input file does not exist")
 }
 
-df <- read_csv(input_file, show_col_types = FALSE) %>% drop_na()
+df <- read.csv(input_file, header = TRUE, stringsAsFactors = FALSE)
+
+df <- df %>% drop_na()
 
 ############################
 # COLUMNS
@@ -40,13 +45,12 @@ selected_features <- strsplit(args[3], ",")[[1]]
 
 missing_cols <- setdiff(c(coord_cols, selected_features), colnames(df))
 if (length(missing_cols) > 0) {
- stop(paste("Missing columns:", paste(missing_cols, collapse = ", ")))
+  stop(paste("Missing columns:", paste(missing_cols, collapse = ", ")))
 }
 
-# These are available for downstream use (e.g. post-processing, joining results)
 coords <- df[, coord_cols]
-data_vars <- df[, selected_features]  
-  
+data_vars <- df[, selected_features]
+
 ############################
 # PARAMETERS
 ############################
@@ -57,6 +61,28 @@ maximum_n_of_clusters    <- as.numeric(args[6])
 maximum_iterations       <- as.numeric(args[7])
 
 ############################
+# OPTIONAL PREPROCESSING ARGS
+############################
+
+invert_vars <- if (length(args) >= 8 && nchar(trimws(args[8])) > 0) {
+  strsplit(args[8], ",")[[1]]
+} else {
+  c()
+}
+
+standardize_vars <- if (length(args) >= 9 && nchar(trimws(args[9])) > 0) {
+  strsplit(args[9], ",")[[1]]
+} else {
+  c()
+}
+
+time <- if (length(args) >= 10 && nchar(trimws(args[10])) > 0) {
+  paste0("_", trimws(args[10]))
+} else {
+  ""
+}
+
+############################
 # OUTPUT FOLDER
 ############################
 
@@ -65,10 +91,51 @@ if (!dir.exists(outfolder)) {
   dir.create(outfolder, recursive = TRUE)
 }
 
+############################
+# VARIABLE PRE-PROCESSING (STRADA 1)
+# -> ONLY VALUES CHANGE, NOT NAMES
+############################
 
+processed_data <- data.frame(matrix(nrow = nrow(data_vars), ncol = 0))
+
+for (var_name in colnames(data_vars)) {
+  
+  x <- data_vars[[var_name]]
+  
+  # INVERSION (NO NAME CHANGE)
+  if (var_name %in% invert_vars) {
+    x <- ifelse(x == 0, 0, 1 / x)
+  }
+  
+  # STANDARDIZATION (NO NAME CHANGE)
+  if (var_name %in% standardize_vars) {
+    x <- scale(x)[,1]
+  }
+  
+  # KEEP ORIGINAL NAME ALWAYS
+  processed_data[[var_name]] <- x
+}
 
 ############################
-# JAVA FEATURE STRING
+# SAVE PREPROCESSED DATASET
+############################
+
+input_basename <- tools::file_path_sans_ext(basename(input_file))
+processed_filename <- paste0(outfolder, "/", input_basename, "_processing.csv")
+
+processed_output <- cbind(coords, processed_data)
+
+write.csv(
+  processed_output,
+  file = processed_filename,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+cat("Preprocessed dataset saved to:", processed_filename, "\n")
+
+############################
+# JAVA FEATURE STRING (UNCHANGED NAMES)
 ############################
 
 features2 <- paste0("\"", selected_features, "\"", collapse = " ")
@@ -79,7 +146,7 @@ features2 <- paste0("\"", selected_features, "\"", collapse = " ")
 
 command <- paste0(
   "java -jar ./XmeanCluster.jar ",
-  "\"", input_file, "\" ",
+  "\"", processed_filename, "\" ",
   min_elements_in_cluster, " ",
   minimum_n_of_clusters,   " ",
   maximum_n_of_clusters,   " ",
@@ -96,22 +163,19 @@ XMeanCluster_execution <- system(
   ignore.stdout        = FALSE,
   ignore.stderr        = FALSE,
   wait                 = TRUE,
-  input                = NULL,
   show.output.on.console = TRUE,
-  minimized            = FALSE,
   invisible            = TRUE
 )
 
 ############################
 # CHECK RESULT
 ############################
-execution_success <- length(which(grepl(pattern = "OK MaxEnt", x = XMeanCluster_execution))) > 0
 
+execution_success <- length(which(grepl("OK MaxEnt", XMeanCluster_execution))) > 0
 
-
-###########################
+############################
 # CLUSTER INTERPRETATION
-###########################
+############################
 
 cluster_file <- file.path(outfolder, "clustering_table_xmeans.csv")
 
@@ -119,94 +183,82 @@ if (!file.exists(cluster_file)) {
   stop("Missing clustering_table_xmeans.csv")
 }
 
-df <- read.csv(cluster_file, header = TRUE)
+df_2 <- read.csv(cluster_file, header = TRUE)
 
-df <- df %>%
+df_2 <- df_2 %>%
   rename(cluster = clusterid)
 
-data_with_clusters <- df
+data_with_clusters <- df_2
 
-# fix cluster 0 (if present)
 max_cluster <- max(data_with_clusters$cluster, na.rm = TRUE)
 data_with_clusters$cluster[data_with_clusters$cluster == 0] <- max_cluster + 1
 
-
 clustering_data <- data_with_clusters[, selected_features, drop = FALSE]
 
+############################
+# CENTROIDS
+############################
 
-
-# Calculate centroids for each cluster
 cluster_centroids <- data_with_clusters %>%
   group_by(cluster) %>%
-  summarise(across(all_of(names(clustering_data)), mean, na.rm = TRUE))
+  summarise(across(all_of(names(clustering_data)), mean, na.rm = TRUE)) %>%
+  select(-cluster)
 
-cluster_centroids <- cluster_centroids %>% select(-cluster)
-
-# Quantiles
 feature_quantiles <- apply(clustering_data, 2, quantile)
 
-# Prepare the centroids matrix with "M" for medium
-centroid_labels <- matrix("M", nrow=nrow(cluster_centroids), ncol=ncol(cluster_centroids))
+centroid_labels <- matrix("M",
+                          nrow = nrow(cluster_centroids),
+                          ncol = ncol(clustering_data))
 
-
-###############################################################################
-######                  INTERPRETATION OF QUANTILES                      ######
-###############################################################################
-
-
-# Filling labeled centroids
 for (centroid_idx in 1:nrow(cluster_centroids)) {
-  for (feat in 1:(ncol(clustering_data))) {
-    if (cluster_centroids[centroid_idx,feat]<feature_quantiles[3,feat]){    
+  for (feat in 1:ncol(clustering_data)) {
+    
+    if (cluster_centroids[centroid_idx, feat] < feature_quantiles[3, feat]) {
       centroid_labels[centroid_idx, feat] <- "L"
     }
-    else if (cluster_centroids[centroid_idx,feat]>feature_quantiles[4,feat]) {   
+    else if (cluster_centroids[centroid_idx, feat] > feature_quantiles[4, feat]) {
       centroid_labels[centroid_idx, feat] <- "H"
     }
-    
   }
-  
 }
 
-# Counting L, M, H to decide the level of attention
-c_H <- matrix(nrow = nrow(centroid_labels), ncol=1)
-c_M <- matrix(nrow = nrow(centroid_labels), ncol=1)
-c_L <- matrix(nrow = nrow(centroid_labels), ncol=1)
+############################
+# ATTENTION LEVEL
+############################
 
-# Creating empty vector for attention interpretation centroids
-cluster_attention_level <- matrix(nrow = nrow(centroid_labels), ncol=1)
+c_H <- rowSums(centroid_labels == "H")
+c_M <- rowSums(centroid_labels == "M")
+c_L <- rowSums(centroid_labels == "L")
 
-# Counting the letters from centroid_labels
-for (r in 1:nrow(centroid_labels)) {
-  c_H[r] <- sum(centroid_labels[r,] == "H")
-  c_M[r] <- sum(centroid_labels[r,] == "M")
-  c_L[r] <- sum(centroid_labels[r,] == "L")
-}  
+cluster_attention_level <- character(length(c_H))
 
-# Assignment 
-for (i in 1:nrow(cluster_attention_level)) {
-  if (c_H[i]>c_L[i] & c_H[i]>c_M[i]) {
+for (i in 1:length(c_H)) {
+  if (c_H[i] > c_L[i] & c_H[i] > c_M[i]) {
     cluster_attention_level[i] <- "high attention"
-  }
-  else if (c_L[i]>=c_H[i] & c_L[i]>c_M[i]) {
+  } else if (c_L[i] >= c_H[i] & c_L[i] > c_M[i]) {
     cluster_attention_level[i] <- "low attention"
-  }
-  else{ 
+  } else {
     cluster_attention_level[i] <- "medium attention"
   }
 }
 
-###############################################################################
-
+############################
+# ASSIGN BACK
+############################
 
 data_with_clusters$distance_class_interpretation <- NA
+
 for (i in 1:nrow(cluster_centroids)) {
   indici <- which(data_with_clusters$cluster == i)
-  interpretation <- cluster_attention_level[i]
-  data_with_clusters$distance_class_interpretation[indici] <- interpretation
+  data_with_clusters$distance_class_interpretation[indici] <- cluster_attention_level[i]
 }
 
+############################
+# OUTPUT FINAL FILE
+############################
 
-write.csv(data_with_clusters,
-          file = file.path(outfolder, "cluster_Xmeans_output.csv"),
-          row.names = FALSE)
+write.csv(
+  data_with_clusters,
+  file = file.path(outfolder, paste0("cluster_Xmeans_output", time, ".csv")),
+  row.names = FALSE
+)
