@@ -1,0 +1,36 @@
+VAE started
+input file: C:\Users\laura\Documents\Risk Assessment Mar Baltico - NOVEMBRE\Risk assessment_novembre\Baltico_VAE\Five_spp_vae\.\dataset_Baltic_2020_ices21_26_finale.csv
+nHidden: -1
+nEpochs: -1
+outputFolder: C:\Users\laura\Documents\Risk Assessment Mar Baltico - NOVEMBRE\Risk assessment_novembre\Baltico_VAE\Five_spp_vae\.\out_2020_n12_test
+reconstructionNumSamples: 16
+variables: [five_spp_cpue_2020_std, bathymetry_2020_std, bottom_temperature_2020_std, surface_net_primary_production_2020_std, fishing_activity_hours_2020_std, ship_density_route_2020_std, bottom_salinity_2020_std, bottom_dissolved_oxygen_2020_inv_std, dumping_site_2020, military_area_2020, wind_farm_2020, bedrock_seabed_2020, hard_bottom_seabed_2020]
+Found feature: five_spp_cpue_2020_std
+Found feature: bathymetry_2020_std
+Found feature: bottom_temperature_2020_std
+Found feature: surface_net_primary_production_2020_std
+Found feature: fishing_activity_hours_2020_std
+Found feature: ship_density_route_2020_std
+Found feature: bottom_salinity_2020_std
+Found feature: bottom_dissolved_oxygen_2020_inv_std
+Found feature: dumping_site_2020
+Found feature: military_area_2020
+Found feature: wind_farm_2020
+Found feature: bedrock_seabed_2020
+Found feature: hard_bottom_seabed_2020
+[main] INFO org.nd4j.linalg.factory.Nd4jBackend - Loaded [CpuBackend] backend
+[main] INFO org.nd4j.nativeblas.NativeOpsHolder - Number of threads used for linear algebra: 10
+[main] INFO org.nd4j.linalg.cpu.nativecpu.CpuNDArrayFactory - Binary level Generic x86 optimization level AVX/AVX2
+[main] INFO org.nd4j.nativeblas.Nd4jBlas - Number of threads used for OpenMP BLAS: 10
+[main] INFO org.nd4j.linalg.api.ops.executioner.DefaultOpExecutioner - Backend used: [CPU]; OS: [Windows 11]
+[main] INFO org.nd4j.linalg.api.ops.executioner.DefaultOpExecutioner - Cores: [12]; Memory: [7,9GB];
+[main] INFO org.nd4j.linalg.api.ops.executioner.DefaultOpExecutioner - Blas vendor: [OPENBLAS]
+[main] INFO org.nd4j.linalg.cpu.nativecpu.CpuBackend - Backend build information:
+ GCC: "12.1.0"
+STD version: 201103L
+DEFAULT_ENGINE: samediff::ENGINE_CPU
+HAVE_FLATBUFFERS
+HAVE_OPENBLAS
+[main] INFO org.deeplearning4j.nn.multilayer.MultiLayerNetwork - Starting MultiLayerNetwork with WorkspaceModes set to [training: ENABLED; inference: ENABLED], cacheMode set to [NONE]
+Saving results to file
+Scores and output written to C:\Users\laura\Documents\Risk Assessment Mar Baltico - NOVEMBRE\Risk assessment_novembre\Baltico_VAE\Five_spp_vae\.\out_2020_n12_test\classification_test_1904X13_a46e53644752252350f55d39452053b60554958150c59855#13.csv
