@@ -1,0 +1,20 @@
+VAE started
+input file: C:\Users\laura\Documents\Prove ingegnerizzazione\VAE_INGEGNEREEE\.\dataset_baltic_sea_2020_std.csv
+nHidden: -1
+nEpochs: -1
+outputFolder: C:\Users\laura\Documents\Prove ingegnerizzazione\VAE_INGEGNEREEE\output_vae_ciao
+reconstructionNumSamples: 16
+variables: [five_spp_cpue_2020_std, bathymetry_2020_std, bottom_temperature_2020_std, surface_net_primary_production_2020_std, fishing_activity_hours_2020_std, ship_density_route_2020_std, bottom_salinity_2020_std, bottom_dissolved_oxygen_2020_inv_std, dumping_site_2020, military_area_2020, wind_farm_2020, bedrock_seabed_2020, hard_bottom_seabed_2020]
+Found feature: five_spp_cpue_2020_std
+Found feature: bathymetry_2020_std
+Found feature: bottom_temperature_2020_std
+Found feature: surface_net_primary_production_2020_std
+Found feature: bottom_dissolved_oxygen_2020_inv_std
+Found feature: fishing_activity_hours_2020_std
+Found feature: ship_density_route_2020_std
+Found feature: bottom_salinity_2020_std
+Found feature: dumping_site_2020
+Found feature: military_area_2020
+Found feature: wind_farm_2020
+Found feature: bedrock_seabed_2020
+Found feature: hard_bottom_seabed_2020
